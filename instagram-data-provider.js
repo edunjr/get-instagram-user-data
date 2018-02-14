@@ -8,35 +8,38 @@ var username;
 var user_data;
 var replyto;
 
-amqp.connect(host, function(error, connection){
+amqp.connect('amqp://localhost', function(error, connection){
   connection.createChannel(function(error, channel){
     channel.assertQueue(queue, {durable: false});
 
-    console.log("2");
-    channel.consume(queue, function reply(message){
-      console.log("message content", message.content);
-      username = message.content;
-      console.log("3");
-      user_data = getUserData(username);
-      replyTo = message.properties.replyTo;
+    channel.consume(
+      queue,
+      function reply(message){
+        username = message.content;
 
-      channel.sendToQueue(replyTo, new Buffer(user_data), {
-        correlationId: message.properties.correlationId
-      });
-      channel.ack(message);
-    });
+        getUserData(username).then(res => {
+          user_data = res;
+          replyTo = message.properties.replyTo;
+
+          channel.sendToQueue(
+            replyTo,
+            new Buffer(user_data),
+            { correlationId: message.properties.correlationId }
+          );
+
+          channel.ack(message);
+
+        });
+      }
+    );
   });
 });
 
-
-function getUserData(){
-  console.log("4");
-  axios.get('https://www.instagram.com/netoabel/?__a=1')
-    .then(response => {
-console.log("5");
-      return(response.data.user.username);
-    })
+function getUserData(username){
+  var uri = `https://www.instagram.com/${username}/?__a=1`;
+  return axios.get(uri)
+    .then(response =>  response.data.user.biography)
     .catch(error => {
-      console.log("getUserData error: ", error);
+      console.log("request gone wrong: ", error);
     });
 }
