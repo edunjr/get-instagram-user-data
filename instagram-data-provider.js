@@ -7,6 +7,7 @@ var queue = 'ig_data';
 var username;
 var user_data;
 var replyto;
+var uri;
 
 amqp.connect('amqp://localhost', function(error, connection){
   connection.createChannel(function(error, channel){
@@ -18,17 +19,21 @@ amqp.connect('amqp://localhost', function(error, connection){
         username = message.content;
 
         getUserData(username).then(res => {
-          user_data = res;
+          user_data = JSON.parse(res);
+
           replyTo = message.properties.replyTo;
 
           channel.sendToQueue(
             replyTo,
-            new Buffer(user_data),
+            new Buffer(JSON.stringify(user_data)),
             { correlationId: message.properties.correlationId }
           );
 
           channel.ack(message);
 
+        })
+        .catch(function (e) {
+          console.log(e);
         });
       }
     );
@@ -36,9 +41,9 @@ amqp.connect('amqp://localhost', function(error, connection){
 });
 
 function getUserData(username){
-  var uri = `https://www.instagram.com/${username}/?__a=1`;
+  uri = `https://www.instagram.com/${username}/?__a=1`;
   return axios.get(uri)
-    .then(response =>  response.data.user.biography)
+    .then(response =>  JSON.stringify(response.data.user))
     .catch(error => {
       console.log("request gone wrong: ", error);
     });
